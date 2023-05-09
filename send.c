@@ -12,6 +12,18 @@
 #define MAX_SIZE 4095
 typedef int sockid;
 char buf[MAX_SIZE+1];
+
+char *file2str(const char *path){
+    FILE *fp = fopen(path, "r");
+    fseek(fp, 0, SEEK_END);
+    int fplen = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    char *content = (char *)malloc(fplen);
+    fread(content, 1, fplen, fp);
+    fclose(fp);
+    return content;
+}
+
 void custom_send(int __fd, void * __buf, size_t __len, int __flags, int need_out){
     /**
      * @param: __fd socket_fd
@@ -140,9 +152,44 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     sprintf(buf, "From: %s\r\nTo: %s\r\nContent-Type: multipart/mixed; boundary=qwertyuiopasdfghjklzxcvbnm\r\n", from, receiver);
     if(subject != NULL) strcat(buf, "Subject: "), strcat(buf, subject), strcat(buf, "\r\n\r\n");
     custom_send(s_fd, buf, strlen(buf), 0, 1);
+
+    if(msg != NULL){
+        sprintf(buf, "--qwertyuiopasdfghjklzxcvbnm\r\nContent-Type:text/plain\r\n\r\n");
+        custom_send(s_fd, buf, strlen(buf), 0, 1);
+        if(access(msg, F_OK) == 0){
+            char *content = file2str(msg);
+            custom_send(s_fd, content, strlen(content), 0, 0);
+            free(content);
+        }
+        else    
+            custom_send(s_fd, msg, strlen(msg), 0, 1);
+        custom_send(s_fd, "\r\n", 2, 0, 1);
+    }
+    
+    if(att_path != NULL){
+        sprintf(buf, "--qwertyuiopasdfghjklzxcvbnm\r\nContent-Type:application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; name=%s\r\n\r\n", att_path);
+        custom_send(s_fd, buf, strlen(buf), 0, 1);
+        FILE *fp = fopen(att_path, "r");
+        if(fp == NULL){
+            perror("file not exist");
+            exit(EXIT_FAILURE);
+        }
+        FILE *fp64 = fopen("tmp.attach", "w");
+        encode_file(fp, fp64);
+        fclose(fp); fclose(fp64);
+        char *attach = file2str("tmp.attach");
+        custom_send(s_fd, attach, strlen(attach), 0, 0);
+        free(attach);
+    }
+    sprintf(buf, "--qwertyuiopasdfghjklzxcvbnm\r\n");
+    custom_send(s_fd, buf, strlen(buf), 0, 1);
     // TODO: Message ends with a single period
+    custom_send(s_fd, end_msg, strlen(end_msg), 0, 1);
+    custom_recv(s_fd, buf, MAX_SIZE, 0, 1);
 
     // TODO: Send QUIT command and print server response
+    custom_send(s_fd, "QUIT\r\n", 6, 0, 1);
+    custom_recv(s_fd, (void *)buf, MAX_SIZE, 0, 1);
 
     close(s_fd);
 }
