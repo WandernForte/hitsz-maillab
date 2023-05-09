@@ -21,7 +21,11 @@ void custom_send(int __fd, void * __buf, size_t __len, int __flags, int need_out
      * @param: need_out whether print out or not 
     */
     if(send(__fd, __buf, __len, 0)==-1)
+    {
+        perror(__buf);
         exit(EXIT_FAILURE);
+        
+        }
     if(need_out==1)
         printf("%s\r\n", (char*)buf);
     
@@ -33,12 +37,14 @@ void custom_recv(int __fd, void * __buf, size_t __len, int flags, int need_out){
      * @retval None
      */
     int recv_size = -1;
-    if((recv_size=recv(__fd, __buf, __len, 0)) == -1)
+    if((recv_size=recv(__fd, __buf, __len, 0)) == -1){
+        perror(__buf);
         exit(EXIT_FAILURE);
+        }
     if(need_out){
         char *tbuf = (char *)__buf;
         tbuf[recv_size] = '\0';
-        printf("%s", tbuf);
+        printf("%s\r\n", tbuf);
         }
 }
 // receiver: mail address of the recipient
@@ -48,11 +54,12 @@ void custom_recv(int __fd, void * __buf, size_t __len, int flags, int need_out){
 void send_mail(const char* receiver, const char* subject, const char* msg, const char* att_path)
 {
     const char* end_msg = "\r\n.\r\n";
-    const char* host_name = "demo@hitsz-lab.com"; // TODO: Specify the mail server domain name
+    const char* host_name = "ubuntu.localdomain"; // TODO: Specify the mail server domain name
+    // gethostname(host_name, 32);
     const unsigned short port = 25; // SMTP server port
-    const char* user = "sento"; // TODO: Specify the user
-    const char* pass = "114514"; // TODO: Specify the password
-    const char* from = "sento@hitsz-lab.com"; // TODO: Specify the mail address of the sender
+    const char* user = "ubuntu.localdomain"; // TODO: Specify the user
+    const char* pass = "20020626"; // TODO: Specify the password
+    const char* from = "ubuntu.localdomain"; // TODO: Specify the mail address of the sender
     char dest_ip[16]; // Mail server IP address
     int s_fd; // socket file descriptor
     struct hostent *host;
@@ -64,9 +71,10 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     if ((host = gethostbyname(host_name)) == NULL)
     {
         herror("gethostbyname");
+        // printf("break there!\n");
         exit(EXIT_FAILURE);
     }
-
+    
     addr_list = (struct in_addr **) host->h_addr_list;
     while (addr_list[i] != NULL)
         ++i;
@@ -74,14 +82,21 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     //===========================================================================
     // TODO: Create a socket, return the file descriptor to s_fd, and establish a TCP connection to the mail server
     s_fd = socket(AF_INET, SOCK_STREAM, 0);
-    
-    if(-1==s_fd) exit(EXIT_FAILURE); // fail to create socket, exit failure
+    // printf("ip: %s\n", dest_ip);
+    // runned here
+    if(-1==s_fd) {
+        perror("socket");
+        exit(EXIT_FAILURE);
+        } // fail to create socket, exit failure
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = inet_addr(dest_ip);
     servaddr.sin_port = htons(port);
     socklen_t addrlen = sizeof(servaddr);
-    bzero(&servaddr, addrlen);
-    if(!connect(s_fd, (struct sockaddr*)&servaddr, addrlen)) exit(EXIT_FAILURE); // fail to create a TCP connection, exit failure
+    bzero((&servaddr)->sin_zero, addrlen);
+    if(connect(s_fd, (struct sockaddr*)&servaddr, addrlen)==-1){ 
+        perror("connect");
+        exit(EXIT_FAILURE);
+        } // fail to create a TCP connection, exit failure
     // ==========================================================================
     // Print welcome message
     if ((r_size = recv(s_fd, buf, MAX_SIZE, 0)) == -1)
@@ -93,16 +108,19 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     printf("%s", buf);
 
     // Send EHLO command and print server response
-    const char* EHLO = "EHLO @hitsz-lab.com\r\n"; // TODO: Enter EHLO command here
+    const char* EHLO = "EHLO localdomain\r\n"; // TODO: Enter EHLO command here
+    printf("%s\n", EHLO);
     send(s_fd, EHLO, strlen(EHLO), 0);
     // TODO: Print server response to EHLO command
     recv(s_fd, buf, MAX_SIZE, 0);
-    printf("recv: %s", buf);
+    printf("%s\r\n", buf);
     // TODO: Authentication. Server response should be printed out.
+    /*
     const char* AUTH = "AUTH login";
     send(s_fd, AUTH, strlen(AUTH), 0);
     recv(s_fd, buf, MAX_SIZE, 0);
     printf("recv Authentication: %s", buf);
+    */
     // TODO: Send MAIL FROM command and print server response
     // const char* MAIL = "MAIL ";
     // strcat(MAIL, from);
@@ -116,9 +134,12 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     custom_recv(s_fd, buf, MAX_SIZE, 0, 1);
     // printf("%s\r\n", buf);
     // TODO: Send DATA command and print server response
-    
+    custom_send(s_fd, "DATA\r\n", 6, 0, 1);
+    custom_recv(s_fd, buf, MAX_SIZE, 0, 1);
     // TODO: Send message data
-    
+    sprintf(buf, "From: %s\r\nTo: %s\r\nContent-Type: multipart/mixed; boundary=qwertyuiopasdfghjklzxcvbnm\r\n", from, receiver);
+    if(subject != NULL) strcat(buf, "Subject: "), strcat(buf, subject), strcat(buf, "\r\n\r\n");
+    custom_send(s_fd, buf, strlen(buf), 0, 1);
     // TODO: Message ends with a single period
 
     // TODO: Send QUIT command and print server response
