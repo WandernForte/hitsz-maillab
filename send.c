@@ -39,7 +39,7 @@ void custom_send(int __fd, void * __buf, size_t __len, int __flags, int need_out
         
         }
     if(need_out==1)
-        printf("%s\r\n", (char*)buf);
+        printf("%s\r\n", (char*)__buf);
     
 }
 void custom_recv(int __fd, void * __buf, size_t __len, int flags, int need_out){
@@ -66,12 +66,12 @@ void custom_recv(int __fd, void * __buf, size_t __len, int flags, int need_out){
 void send_mail(const char* receiver, const char* subject, const char* msg, const char* att_path)
 {
     const char* end_msg = "\r\n.\r\n";
-    const char* host_name = "ubuntu.localdomain"; // TODO: Specify the mail server domain name
+    const char* host_name = "smtp.qq.com"; // TODO: Specify the mail server domain name
     // gethostname(host_name, 32);
     const unsigned short port = 25; // SMTP server port
-    const char* user = "ubuntu.localdomain"; // TODO: Specify the user
-    const char* pass = "20020626"; // TODO: Specify the password
-    const char* from = "ubuntu.localdomain"; // TODO: Specify the mail address of the sender
+    const char* user = "1648639935@qq.com"; // TODO: Specify the user
+    const char* pass = "cosxpncpgscwejab"; // TODO: Specify the password
+    const char* from = "1648639935@qq.com"; // TODO: Specify the mail address of the sender
     char dest_ip[16]; // Mail server IP address
     int s_fd; // socket file descriptor
     struct hostent *host;
@@ -120,19 +120,28 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     printf("%s", buf);
 
     // Send EHLO command and print server response
-    const char* EHLO = "EHLO localdomain\r\n"; // TODO: Enter EHLO command here
+    const char* EHLO = "EHLO qq.com\r\n"; // TODO: Enter EHLO command here
     printf("%s\n", EHLO);
     send(s_fd, EHLO, strlen(EHLO), 0);
     // TODO: Print server response to EHLO command
     recv(s_fd, buf, MAX_SIZE, 0);
     printf("%s\r\n", buf);
     // TODO: Authentication. Server response should be printed out.
-    /*
-    const char* AUTH = "AUTH login";
-    send(s_fd, AUTH, strlen(AUTH), 0);
-    recv(s_fd, buf, MAX_SIZE, 0);
-    printf("recv Authentication: %s", buf);
-    */
+
+    const char* AUTH = "AUTH login\r\n";
+    custom_send(s_fd, (void *)AUTH, strlen(AUTH), 0, 1);
+    custom_recv(s_fd, (void *)buf, MAX_SIZE, 0, 1);
+
+    char *user64 = encode_str(user); strcat(user64, "\r\n");
+    custom_send(s_fd, (void *)user64, strlen(user64), 0, 1);
+    custom_recv(s_fd, (void *)buf, MAX_SIZE, 0, 1);
+    free(user64);
+
+    char *pass64 = encode_str(pass); strcat(pass64, "\r\n");
+    custom_send(s_fd, (void *)pass64, strlen(pass64), 0, 1);
+    custom_recv(s_fd, (void *)buf, MAX_SIZE, 0, 1);
+    free(pass64);
+
     // TODO: Send MAIL FROM command and print server response
     // const char* MAIL = "MAIL ";
     // strcat(MAIL, from);
@@ -150,25 +159,34 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     custom_recv(s_fd, buf, MAX_SIZE, 0, 1);
     // TODO: Send message data
     sprintf(buf, "From: %s\r\nTo: %s\r\nContent-Type: multipart/mixed; boundary=qwertyuiopasdfghjklzxcvbnm\r\n", from, receiver);
-    if(subject != NULL) strcat(buf, "Subject: "), strcat(buf, subject), strcat(buf, "\r\n\r\n");
+    if(subject != NULL) {
+        strcat(buf, "Subject: ");
+        strcat(buf, subject);
+        strcat(buf, "\r\n\r\n");
+    }
     custom_send(s_fd, buf, strlen(buf), 0, 1);
-
+    //msg
     if(msg != NULL){
         sprintf(buf, "--qwertyuiopasdfghjklzxcvbnm\r\nContent-Type:text/plain\r\n\r\n");
-        custom_send(s_fd, buf, strlen(buf), 0, 1);
+        custom_send(s_fd, (void *)buf, strlen(buf), 0, 1);
         if(access(msg, F_OK) == 0){
             char *content = file2str(msg);
-            custom_send(s_fd, content, strlen(content), 0, 0);
+            // printf("%s\r\n", content);
+            custom_send(s_fd, content, strlen(content), 0, 1);
             free(content);
         }
-        else    
-            custom_send(s_fd, msg, strlen(msg), 0, 1);
-        custom_send(s_fd, "\r\n", 2, 0, 1);
+        else
+            {
+            printf("%s\r\n", msg);    
+            custom_send(s_fd, (void *)msg, strlen(msg), 0, 0);
+            }
+        
+        custom_send(s_fd, "\r\n", 2, 0, 0);
     }
-    
+    // attachment file
     if(att_path != NULL){
         sprintf(buf, "--qwertyuiopasdfghjklzxcvbnm\r\nContent-Type:application/octet-stream\r\nContent-Transfer-Encoding: base64\r\nContent-Disposition: attachment; name=%s\r\n\r\n", att_path);
-        custom_send(s_fd, buf, strlen(buf), 0, 1);
+        custom_send(s_fd, (void *)buf, strlen(buf), 0, 1);
         FILE *fp = fopen(att_path, "r");
         if(fp == NULL){
             perror("file not exist");
@@ -182,10 +200,11 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
         free(attach);
     }
     sprintf(buf, "--qwertyuiopasdfghjklzxcvbnm\r\n");
-    custom_send(s_fd, buf, strlen(buf), 0, 1);
+    custom_send(s_fd, (void *)buf, strlen(buf), 0, 1);
+
     // TODO: Message ends with a single period
     custom_send(s_fd, end_msg, strlen(end_msg), 0, 1);
-    custom_recv(s_fd, buf, MAX_SIZE, 0, 1);
+    custom_recv(s_fd, (void*)buf, MAX_SIZE, 0, 1);
 
     // TODO: Send QUIT command and print server response
     custom_send(s_fd, "QUIT\r\n", 6, 0, 1);
