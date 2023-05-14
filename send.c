@@ -70,7 +70,7 @@ void send_mail(const char* receiver, const char* subject, const char* msg, const
     // gethostname(host_name, 32);
     const unsigned short port = 25; // SMTP server port
     const char* user = "1648639935@qq.com"; // TODO: Specify the user
-    const char* pass = "cosxpncpgscwejab"; // TODO: Specify the password
+    const char* pass = "******"; // TODO: Specify the password
     const char* from = "1648639935@qq.com"; // TODO: Specify the mail address of the sender
     char dest_ip[16]; // Mail server IP address
     int s_fd; // socket file descriptor

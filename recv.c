@@ -56,7 +56,7 @@ void recv_mail()
     const char* host_name = "smtp.qq.com"; // TODO: Specify the mail server domain name
     const unsigned short port = 110; // POP3 server port
     const char* user = "1648639935@qq.com"; // TODO: Specify the user
-    const char* pass = "cosxpncpgscwejab"; // TODO: Specify the password
+    const char* pass = "*********"; // TODO: Specify the password
     char dest_ip[16];
     int s_fd; // socket file descriptor
     struct hostent *host;
